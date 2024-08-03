@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Wermos</title>
+    
+    <style type="text/css">
+        /* Style for the body with a background image */
+        body {
+            background-image: url('your-background-image-url.jpg'); /* Replace with your image URL */
+            background-size: cover; /* This makes the background cover the entire page */
+            background-position: center; /* Centers the background image */
+            background-repeat: no-repeat; /* Prevents the background from repeating */
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end; /* Aligns content to the bottom */
+            height: 100vh; /* Full viewport height */
+        }
+        
+        /* Styles for text elements */
+        text {
+            font-family: Helvetica, Arial, sans-serif;
+            font-size: 11px;
+            pointer-events: none; /* Prevents text from being interactive */
+        }
+
+        /* Styles for the chart container */
+        #chart {
+            position: absolute;
+            width: 500px;
+            height: 500px;
+            top: 0;
+            left: 0;
+        }
+
+        /* Styles for the question container */
+        #question {
+            position: absolute;
+            width: 400px;
+            height: 500px;
+            top: 0;
+            left: 520px;
+        }
+
+        /* Styles for the question heading */
+        #question h1 {
+            font-size: 50px;
+            font-weight: bold;
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+            position: absolute;
+            padding: 0;
+            margin: 0;
+            top: 50%; /* Centers the heading vertically */
+            -webkit-transform: translate(0, -50%); /* For Safari */
+            transform: translate(0, -50%); /* Centers the heading */
+        }
+        
+        /* Styles for the timer message */
+        #timer {
+            position: absolute;
+            text-align: center;
+            font-size: 20px;
+            color: red; /* Timer message color */
+            margin: 20px 0; /* Space around the timer */
+        }
+    </style>
+    
+</head>
+<body>
+    <div id="chart"></div> <!-- Container for the chart -->
+    <div id="question"><h1></h1></div> <!-- Container for displaying the question -->
+    <div id="timer"></div> <!-- Container for the timer message -->
+
+    <!-- Include D3.js library -->
+    <script src="https://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+    <script type="text/javascript" charset="utf-8">
+        // Padding and dimensions for the chart
+        var padding = {top: 20, right: 40, bottom: 0, left: 0},
+            w = 500 - padding.left - padding.right,
+            h = 500 - padding.top - padding.bottom,
+            r = Math.min(w, h) / 2, // Radius for the pie chart
+            rotation = 0,
+            oldrotation = 0,
+            picked = 100000,
+            oldpick = [],
+            color = d3.scale.category20(); // Color scale for pie slices
+
+        // Data for the pie chart (labels and corresponding questions)
+        var data = [
+            {"label": "BTC", "value": 1, "question": "10 VIP Round"},
+            {"label": "ETH", "value": 1, "question": "5 VIP Round"},
+            {"label": "USDT", "value": 1, "question": "1000 Stars"},
+            {"label": "BNB", "value": 1, "question": "500 Stars"},
+            {"label": "SOL", "value": 1, "question": "200 Stars"},
+            {"label": "USDC", "value": 1, "question": "100 Stars"},
+            {"label": "XRP", "value": 1, "question": "10 Stars"},
+            {"label": "DOGE", "value": 1, "question": "10 Stars"},
+            {"label": "TON", "value": 1, "question": "1000 Dragon"},
+            {"label": "ADA", "value": 1, "question": "1000 Dragon"},
+            {"label": "TRX", value: 1, "question": "1000 Dragon"},
+            {"label": "AVAX", value: 1, "question": "100 Dragon"},
+            {"label": "SHIB", value: 1, "question": "100 Dragon"},
+            {"label": "DOT", value: 1, "question": "100 Dragon"},
+            {"label": "BCH", value: 1, "question": "50 Dragon"},
+            {"label": "LINK", value: 1, "question": "50 Dragon"},
+            {"label": "DAI", value: 1, "question": "10 Dragon"},
+            {"label": "LEO", value: 1, "question": "10 Dragon"},
+            {"label": "NEAR", value: 1, "question": "None"},
+            {"label": "LTC", value: 1, "question": "Loot."}
+        ];
+
+        // Create SVG container for the chart
+        var svg = d3.select('#chart')
+            .append("svg")
+            .data([data])
+            .attr("width", w + padding.left + padding.right)
+            .attr("height", h + padding.top + padding.bottom);
+
+        // Create a group for the chart
+        var container = svg.append("g")
+            .attr("class", "chartholder")
+            .attr("transform", "translate(" + (w / 2 + padding.left) + "," + (h / 2 + padding.top) + ")");
+
+        var vis = container.append("g"); // Group for pie slices
+
+        // Create pie layout
+        var pie = d3.layout.pie().sort(null).value(function(d) { return 1; });
+
+        // Create arc generator for pie slices
+        var arc = d3.svg.arc().outerRadius(r);
+
+        // Create pie slices
+        var arcs = vis.selectAll("g.slice")
+            .data(pie)
+            .enter()
+            .append("g")
+            .attr("class", "slice");
+
+        // Draw pie slice paths
+        arcs.append("path")
+            .attr("fill", function(d, i) { return color(i); })
+            .attr("d", function(d) { return arc(d); });
+
+        // Add text labels to slices
+        arcs.append("text").attr("transform", function(d) {
+                d.innerRadius = 0;
+                d.outerRadius = r;
+                d.angle = (d.startAngle + d.endAngle) / 2;
+                return "rotate(" + (d.angle * 180 / Math.PI - 90) + ")translate(" + (d.outerRadius - 10) + ")";
+            })
+            .attr("text-anchor", "end")
+            .text(function(d, i) {
+                return data[i].label; // Display the label of the slice
+            });
+
+        // Check if the spin is allowed based on the timer
+        checkSpinAvailability();
+
+        function checkSpinAvailability() {
+            const lastSpinTime = localStorage.getItem('lastSpinTime');
+            const now = new Date().getTime();
+            const threeHours = 3 * 60 * 60 * 1000; // 3 hours in milliseconds
+
+            if (lastSpinTime) {
+                const timeSinceLastSpin = now - lastSpinTime;
+
+                if (timeSinceLastSpin < threeHours) {
+                    const remainingTime = threeHours - timeSinceLastSpin;
+                    displayTimer(remainingTime);
+                    return; // Don't allow spinning yet
+                }
+            }
+
+            // Allow spinning if no previous spin or 3 hours have passed
+            container.on("click", spin);
+        }
+
+        function displayTimer(remainingTime) {
+            const hours = Math.floor((remainingTime / (1000 * 60 * 60)) % 24);
+            const minutes = Math.floor((remainingTime / (1000 * 60)) % 60);
+            const seconds = Math.floor((remainingTime / 1000) % 60);
+            document.getElementById('timer').innerText = `Next spin in: ${hours}h ${minutes}m ${seconds}s`;
+            
+            // Update the timer every second
+            setTimeout(() => {
+                displayTimer(remainingTime - 1000);
+            }, 1000);
+        }
+
+        function spin(d) {
+            // Disable clicking while spinning
+            container.on("click", null);
+
+            // Check if all slices have been picked
+            console.log("OldPick: " + oldpick.length, "Data length: " + data.length);
+            if (oldpick.length == data.length) {
+                console.log("done");
+                return; // Stop if all slices have been picked
+            }
+
+            var ps = 360 / data.length, // Angle per slice
+                pieslice = Math.round(1440 / data.length), // Total degrees to spin
+                rng = Math.floor((Math.random() * 1440) + 360); // Random spin angle
+
+            rotation = (Math.round(rng / ps) * ps); // Calculate rotation
+
+            picked = Math.round(data.length - (rotation % 360) / ps); // Determine the picked slice
+            picked = picked >= data.length ? (picked % data.length) : picked; // Wrap around if out of bounds
+
+            // Check if the picked slice has already been chosen
+            if (oldpick.indexOf(picked) !== -1) {
+                d3.select(this).call(spin); // Spin again if picked
+                return;
+            } else {
+                oldpick.push(picked); // Mark slice as picked
+            }
+
+            rotation += 90 - Math.round(ps / 2); // Adjust rotation for centering
+
+            // Animate the spin
+            vis.transition()
+                .duration(3000)
+                .attrTween("transform", rotTween)
+                .each("end", function() {
+                    // Mark the picked slice as seen
+                    d3.select(".slice:nth-child(" + (picked + 1) + ") path")
+                        .attr("fill", "#111");
+
+                    // Populate the question based on the picked slice
+                    d3.select("#question h1")
+                        .text(data[picked].question);
+
+                    oldrotation = rotation; // Update old rotation
+
+                    // Store the current time as the last spin time
+                    localStorage.setItem('lastSpinTime', new Date().getTime());
+
+                    // Disable further clicks after the first spin
+                    container.on("click", null);
+                });
+        }
+
+        // Create an arrow indicator
+        svg.append("g")
+            .attr("transform", "translate(" + (w + padding.left + padding.right) + "," + ((h / 2) + padding.top) + ")")
+            .append("path")
+            .attr("d", "M-" + (r * .15) + ",0L0," + (r * .05) + "L0,-" + (r * .05) + "Z")
+            .style({"fill": "black"}); // Style the arrow
+
+        // Draw the spin button
+        container.append("circle")
+            .attr("cx", 0)
+            .attr("cy", 0)
+            .attr("r", 60) // Radius of the button
+            .style({"fill": "white", "cursor": "pointer"}); // Style the button
+
+        // Add spin text to the button
+        container.append("text")
+            .attr("x", 0)
+            .attr("y", 15) // Position the text
+            .attr("text-anchor", "middle")
+            .text("SPIN") // Text content
+            .style({"font-weight": "bold", "font-size": "30px"}); // Style the text
+        
+        // Tween function for rotation animation
+        function rotTween(to) {
+            var i = d3.interpolate(oldrotation % 360, rotation);
+            return function(t) {
+                return "rotate(" + i(t) + ")";
+            };
+        }
+        
+        // Function to generate random numbers (not used in the current code)
+        function getRandomNumbers() {
+            var array = new Uint16Array(1000);
+            var scale = d3.scale.linear().range([360, 1440]).domain([0, 100000]);
+
+            // Use crypto for random numbers if available
+            if (window.hasOwnProperty("crypto") && typeof window.crypto.getRandomValues === "function") {
+                window.crypto.getRandomValues(array);
+                console.log("works");
+            } else {
+                // Fallback to Math.random if crypto is not supported
+                for (var i = 0; i < 1000; i++) {
+                    array[i] = Math.floor(Math.random() * 100000) + 1;
+                }
+            }
+
+            return array; // Return the array of random numbers
+        }
+    </script>
+</body>
+</html>
